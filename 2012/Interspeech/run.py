@@ -3,47 +3,42 @@
 
 # Copyright 2012 Herve BREDIN (bredin@limsi.fr)
 
-# This file is part of PyAnnote.
-# 
-#     PyAnnote is free software: you can redistribute it and/or modify
-#     it under the terms of the GNU General Public License as published by
-#     the Free Software Foundation, either version 3 of the License, or
-#     (at your option) any later version.
-# 
-#     PyAnnote is distributed in the hope that it will be useful,
-#     but WITHOUT ANY WARRANTY; without even the implied warranty of
-#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#     GNU General Public License for more details.
-# 
-#     You should have received a copy of the GNU General Public License
-#     along with PyAnnote.  If not, see <http://www.gnu.org/licenses/>.
-
-
 """
-   "Unsupervised Speaker Identification using Overlaid Texts in TV Broadcast"
+   Unsupervised Speaker Identification using Overlaid Texts in TV Broadcast
            
-           by Johann Poignant, Hervé Bredin, Viet Bac Le, 
+              Johann Poignant, Hervé Bredin, Viet Bac Le, 
            Laurent Besacier, Claude Barras and Georges Quénot.
 
+    This script relies on PyAnnote available at 
+    http://packages.python.org/PyAnnote
+    
     To reproduce the experiments described in this paper 
     and generate Tables 3, 4, 5 and 6 of "Results" section,
     simply run the following command line::
      
         >>> python run.py
-
+    
 """
 
 # =============================================================================
 # == CHECK PYANNOTE VERSION ===================================================
 # =============================================================================
 
-DESIGNED_FOR_PYANNOTE_VERSION = "0.2.1"
+DESIGNED_FOR_PYANNOTE_VERSION = "0.2.2"
 
-import pyannote
+# check PyAnnote is available
+try:
+    import pyannote
+except Exception, e:
+    raise ImportError("This script relies on PyAnnote %s available at "
+                      "http://packages.python.org/PyAnnote" % \
+                       DESIGNED_FOR_PYANNOTE_VERSION)
+
+# check PyAnnote version
 try:
     assert(pyannote.__version__ >= DESIGNED_FOR_PYANNOTE_VERSION)
 except Exception, e:
-    raise ImportError("This script relies on PyAnnote %s "
+    raise ImportError("This script requires PyAnnote %s "
                       "(you have: %s)." % (DESIGNED_FOR_PYANNOTE_VERSION, \
                                            pyannote.__version__))
 
@@ -58,6 +53,7 @@ from pyannote.algorithm.tagging import HungarianTagger, \
                                        ArgMaxTagger, \
                                        ConservativeDirectTagger
 from pyannote.base.matrix import Cooccurrence, CoTFIDF
+from pyannote.base.annotation import Unknown
 
 # evaluation metric 
 from pyannote.metric.repere import EstimatedGlobalErrorRate
@@ -135,15 +131,29 @@ direct = ConservativeDirectTagger()
 M1 = lambda on, sd, sid : one_to_one(on, sd)
 M2 = lambda on, sd, sid : direct(on, one_to_one(on, sd))
 M3 = lambda on, sd, sid : direct(on, one_to_many(on, sd))
+
 SID = lambda on, sd, sid : sid
 combo = lambda on, sd, sid : direct(on, one_to_many(on, sid))
 
-propagation_algorithms = {'SID' : SID, \
-                          'M1': M1, 'M2': M2, 'M3': M3, \
+propagation_algorithms = {'SID' : SID, 
+                          'M1': M1, 'M2': M2, 'M3': M3, 
                           'M3 + SID' : combo}
 
 # used to keep track of error rates
 eger = {}
+
+# =============================================================================
+# == TITLE ====================================================================
+# =============================================================================
+
+print """
+=============================================================================
+  Unsupervised Speaker Identification using Overlaid Texts in TV Broadcast
+-----------------------------------------------------------------------------
+                Johann Poignant, Hervé Bredin, Viet Bac Le, 
+            Laurent Besacier, Claude Barras and Georges Quénot.
+=============================================================================
+"""
 
 # =============================================================================
 # == TABLES 3 & 4 =============================================================
@@ -156,9 +166,10 @@ for propagation in propagation_algorithms:
     eger['Tables 3 & 4']['No anchor'][propagation] = EstimatedGlobalErrorRate() 
 
 # initialize progress bar
-pb = ProgressBar(maxval=len(videos)*len(propagation_algorithms), \
+pb = ProgressBar(term_width=69, \
+                 maxval=len(videos)*len(propagation_algorithms), \
                  widgets=['Tables 3 & 4: ', Bar()]).start()
-                  
+
 for v, video in enumerate(videos):
     
     # extract automatic speaker diarization for this video
@@ -183,8 +194,8 @@ for v, video in enumerate(videos):
         # evaluate on all frames
         af = annotated_frames.timeline(video)
         eger['Tables 3 & 4']['All'][propagation](msi, s, annotated=af) 
-        # evaluate only on frames without anchors in groundtrut
-        af = af(msi(anchors).timeline.gaps(), mode='loose')
+        # evaluate only on frames without anchors in groundtruth
+        af = af(msi(anchors).timeline.gaps(af.extent()), mode='loose')
         eger['Tables 3 & 4']['No anchor'][propagation](msi, s, annotated=af)
         
         pb.update(v*len(propagation_algorithms)+(p+1))
@@ -230,8 +241,9 @@ eger['Table 5']['No anchor']['Standard'] = EstimatedGlobalErrorRate()
 eger['Table 5']['No anchor']['Full video'] = eger['Tables 3 & 4']['No anchor']['M3']
 
 # initialize progress bar
-pb = ProgressBar(maxval=len(videos), widgets=['Table 5: ', Bar()]).start()
-                  
+pb = ProgressBar(term_width=68, maxval=len(videos), \
+                 widgets=['Table 5: ', Bar()]).start()
+
 for v, video in enumerate(videos):
     
     # extract standard condition
@@ -261,8 +273,8 @@ for v, video in enumerate(videos):
     # evaluate on all frames
     af = annotated_frames.timeline(video)
     eger['Table 5']['All']['Standard'](msi, s, annotated=af) 
-    # evaluate only on frames without anchors in groundtrut
-    af = af(msi(anchors).timeline.gaps(), mode='loose')
+    # evaluate only on frames without anchors in groundtruth
+    af = af(msi(anchors).timeline.gaps(af.extent()), mode='loose')
     eger['Table 5']['No anchor']['Standard'](msi, s, annotated=af)
         
     pb.update(v+1)
@@ -286,4 +298,84 @@ print
 # == TABLE 6 ==================================================================
 # =============================================================================
 
-# TODO
+# initialize error rates
+eger['Table 6'] = {'Perfect': {}, 'Automatic': {}}
+eger['Table 6']['Perfect']['Perfect'] = EstimatedGlobalErrorRate()
+eger['Table 6']['Perfect']['M1'] = EstimatedGlobalErrorRate()
+eger['Table 6']['Automatic']['M1'] = EstimatedGlobalErrorRate()
+eger['Table 6']['Automatic']['M2'] = EstimatedGlobalErrorRate()
+eger['Table 6']['Automatic']['M3'] = EstimatedGlobalErrorRate()
+
+# initialize progress bar
+pb = ProgressBar(term_width=69, maxval=len(videos), \
+                 widgets=['Table 6: ', Bar()]).start()
+
+for v, video in enumerate(videos):
+    
+    # extract standard condition
+    sc = standard_condition.timeline(video)
+
+    # extract overlaid name detection for this video
+    on = auto_overlaid_names.annotation(video, 'written')
+    # focus on standard condition
+    on = on(sc, mode='loose')
+
+    # automatic speaker identification for this video
+    sid = None # (not needed in this set of experiments)
+
+    # extract groundtruth for this video
+    msi = manual_speaker_identification.annotation(video, 'speaker')
+    # focus on standard condition
+    msi = msi(sc, mode='loose')
+
+    # evaluate only on frames without anchors in groundtruth
+    af = annotated_frames.timeline(video)
+    af = af(msi(anchors).timeline.gaps(af.extent()), mode='loose')
+
+    # extract automatic speaker diarization for this video
+    sd = auto_speaker_diarization.annotation(video, 'speaker')
+    # focus on standard condition
+    sd = sd(sc, mode='loose')
+    # anonymize labels (Unknown001, Unknown002, etc.)
+    sd = sd.anonymize()
+    
+    # --- perfect speaker diarization + perfect propagation
+    # is equivalent to start from groundtruth and rename to Unknown 
+    # any person whose name is not found anywhere by overlaid name detection
+    translation = {label: Unknown() \
+                   for label in set(msi.labels())-set(on.labels())}
+    s = msi % translation
+    eger['Table 6']['Perfect']['Perfect'](msi, s, annotated=af)
+    
+    # --- perfect speaker diarization + M1 propagation
+    psd = msi.anonymize()
+    s = M1(on, psd, sid)
+    eger['Table 6']['Perfect']['M1'](msi, s, annotated=af)
+    
+    # --- automatic speaker diarization + M1/M2/M3 propagation
+    for propagation in ['M1', 'M2', 'M3']:
+        s = propagation_algorithms[propagation](on, sd, sid)        
+        eger['Table 6']['Automatic'][propagation](msi, s, annotated=af)
+    
+    pb.update(v+1)
+    
+pb.finish()
+
+
+# pretty print Table 6
+table6 = PrettyTable(["SD", "Propagation", "EGER", \
+                      "Precision", "Recall", "F1-Measure"])
+table6.float_format = "1.3"
+for propagation in ['Perfect', 'M1']:
+    error = eger['Table 6']['Perfect'][propagation]
+    table6.add_row(['Perfect', propagation, abs(error), \
+                    error.precision, error.recall, error.f_measure])
+for propagation in ['M1', 'M2', 'M3']:
+    error = eger['Table 6']['Automatic'][propagation]
+    table6.add_row(['Automatic', propagation, abs(error), \
+                    error.precision, error.recall, error.f_measure])
+
+print table6
+print "Table 6: Effect of speaker diarization (SD) and name"
+print "propagation errors (standard condition, without anchors)."
+print
