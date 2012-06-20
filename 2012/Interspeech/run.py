@@ -92,10 +92,6 @@ f.close()
 manual_speaker_identification = MDTMParser("data/manual_speaker.mdtm", \
                                            multitrack=True)
 
-# manual overlaid name detection
-manual_overlaid_names = MDTMParser("data/manual_overlaid_names.mdtm", \
-                                   multitrack=True)
-
 # --------------------------------------------------
 # LOAD MONOMODAL COMPONENTS OUTPUT ON TEST SET
 # as described in Section "2. Monomodal Components"
